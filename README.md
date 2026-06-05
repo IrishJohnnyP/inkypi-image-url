@@ -2,6 +2,8 @@
 
 An InkyPi plugin that fetches an image from a URL and displays it on your e-paper screen. Useful for dashboards, status boards, weather maps, or any remotely hosted image you want to cycle through on your InkyPi frame.
 
+_Image URL_ is a plugin for [InkyPi](https://github.com/fatihak/InkyPi) that pulls an **PNG**, **JPG**, and **JPEG** image from a valid URL and displays it on your InkyPi frame.
+
 ## Install
 
 Use the InkyPi plugin installer with the plugin ID and this repository URL:
