@@ -1,30 +1,37 @@
 from plugins.base_plugin.base_plugin import BasePlugin
-from utils.http_client import get_http_session
-from PIL import Image, ImageOps
+from PIL import Image
 from io import BytesIO
+import requests
 import logging
 
 logger = logging.getLogger(__name__)
 
+def grab_image(image_url, dimensions, timeout_ms=40000):
+    """Grab an image from a URL and resize it to the specified dimensions."""
+    try:
+        response = requests.get(image_url, timeout=timeout_ms / 1000)
+        response.raise_for_status()
+        img = Image.open(BytesIO(response.content))
+        img = img.convert("RGB")
+        img = img.resize(dimensions, Image.LANCZOS)
+        return img
+    except Exception as e:
+        logger.error(f"Error grabbing image from {image_url}: {e}")
+        return None
+
 class ImageURL(BasePlugin):
     def generate_image(self, settings, device_config):
-        logger.info("=== Image URL Plugin: Starting secure image generation ===")
-
         url = settings.get('url')
         if not url:
-            logger.error("No URL provided in settings")
             raise RuntimeError("URL is required.")
 
         dimensions = device_config.get_resolution()
         if device_config.get_config("orientation") == "vertical":
             dimensions = dimensions[::-1]
-            logger.debug(f"Vertical orientation detected, dimensions: {dimensions[0]}x{dimensions[1]}")
 
         # --- SECURITY FIX ---
-        # Retrieve the key from InkyPi's environment
+        # Retrieve the key from InkyPi's environment and append securely to the URL
         app_key = device_config.load_env_key("app_key")
-        
-        # Safely append the key to the URL
         if app_key:
             separator = "&" if "?" in url else "?"
             secure_url = f"{url}{separator}app_key={app_key}"
@@ -33,26 +40,11 @@ class ImageURL(BasePlugin):
             secure_url = url
         # --------------------
 
-        logger.info("Fetching image securely via HTTP session...")
-        logger.debug(f"Target dimensions: {dimensions[0]}x{dimensions[1]}")
+        logger.info(f"Grabbing image securely from: {url}")
 
-        session = get_http_session()
-        try:
-            # Fetch the raw bytes directly using InkyPi's HTTP session
-            response = session.get(secure_url, timeout=40)
-            response.raise_for_status()
+        image = grab_image(secure_url, dimensions, timeout_ms=40000)
 
-            # Load into Pillow and ensure RGB format
-            image = Image.open(BytesIO(response.content))
-            if image.mode != 'RGB':
-                image = image.convert('RGB')
-
-            # Perfectly fit and center-crop the image to match screen dimensions
-            image = ImageOps.fit(image, dimensions, Image.Resampling.LANCZOS)
-
-        except Exception as e:
-            logger.error(f"Failed to load or process image from URL: {e}")
+        if not image:
             raise RuntimeError("Failed to load image, please check logs.")
 
-        logger.info("=== Image URL Plugin: Image generation complete ===")
         return image
