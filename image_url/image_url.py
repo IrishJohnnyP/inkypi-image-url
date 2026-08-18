@@ -1,11 +1,14 @@
 from plugins.base_plugin.base_plugin import BasePlugin
+from utils.http_client import get_http_session
+from PIL import Image, ImageOps
+from io import BytesIO
 import logging
 
 logger = logging.getLogger(__name__)
 
 class ImageURL(BasePlugin):
     def generate_image(self, settings, device_config):
-        logger.info("=== Image URL Plugin: Starting image generation ===")
+        logger.info("=== Image URL Plugin: Starting secure image generation ===")
 
         url = settings.get('url')
         if not url:
@@ -30,14 +33,25 @@ class ImageURL(BasePlugin):
             secure_url = url
         # --------------------
 
-        logger.info(f"Fetching image securely from URL (key hidden in logs)")
+        logger.info("Fetching image securely via HTTP session...")
         logger.debug(f"Target dimensions: {dimensions[0]}x{dimensions[1]}")
 
-        # Use adaptive image loader with the authenticated URL
-        image = self.image_loader.from_url(secure_url, dimensions, timeout_ms=40000)
+        session = get_http_session()
+        try:
+            # Fetch the raw bytes directly using InkyPi's HTTP session
+            response = session.get(secure_url, timeout=40)
+            response.raise_for_status()
 
-        if not image:
-            logger.error("Failed to load image from URL")
+            # Load into Pillow and ensure RGB format
+            image = Image.open(BytesIO(response.content))
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+
+            # Perfectly fit and center-crop the image to match screen dimensions
+            image = ImageOps.fit(image, dimensions, Image.Resampling.LANCZOS)
+
+        except Exception as e:
+            logger.error(f"Failed to load or process image from URL: {e}")
             raise RuntimeError("Failed to load image, please check logs.")
 
         logger.info("=== Image URL Plugin: Image generation complete ===")
