@@ -4,14 +4,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 class ImageURL(BasePlugin):
-    
-    def _get_auth_headers(self, app_key):
-        """Builds the custom headers needed to pass the Cloudflare Worker security check."""
-        if not app_key:
-            logger.error("Security Error: app_key was not found by device_config.")
-            return {}
-        return {"X-App-Key": app_key}
-
     def generate_image(self, settings, device_config):
         logger.info("=== Image URL Plugin: Starting image generation ===")
 
@@ -25,18 +17,24 @@ class ImageURL(BasePlugin):
             dimensions = dimensions[::-1]
             logger.debug(f"Vertical orientation detected, dimensions: {dimensions[0]}x{dimensions[1]}")
 
-        logger.info(f"Fetching image from URL: {url}")
-        logger.debug(f"Target dimensions: {dimensions[0]}x{dimensions[1]}")
-
         # --- SECURITY FIX ---
         # Retrieve the key from InkyPi's environment
         app_key = device_config.load_env_key("app_key")
-        auth_headers = self._get_auth_headers(app_key)
+        
+        # Safely append the key to the URL
+        if app_key:
+            separator = "&" if "?" in url else "?"
+            secure_url = f"{url}{separator}app_key={app_key}"
+        else:
+            logger.error("Security Error: app_key was not found by device_config.")
+            secure_url = url
         # --------------------
 
-        # Use adaptive image loader for memory-efficient processing
-        # We pass the auth_headers down into the loader so it can authenticate with the Worker
-        image = self.image_loader.from_url(url, dimensions, timeout_ms=40000, headers=auth_headers)
+        logger.info(f"Fetching image securely from URL (key hidden in logs)")
+        logger.debug(f"Target dimensions: {dimensions[0]}x{dimensions[1]}")
+
+        # Use adaptive image loader with the authenticated URL
+        image = self.image_loader.from_url(secure_url, dimensions, timeout_ms=40000)
 
         if not image:
             logger.error("Failed to load image from URL")
