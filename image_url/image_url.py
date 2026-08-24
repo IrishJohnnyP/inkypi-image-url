@@ -1,5 +1,5 @@
 from plugins.base_plugin.base_plugin import BasePlugin
-from PIL import Image
+from PIL import Image, ImageOps
 from io import BytesIO
 import requests
 import logging
@@ -13,7 +13,10 @@ def grab_image(image_url, dimensions, timeout_ms=40000):
         response.raise_for_status()
         img = Image.open(BytesIO(response.content))
         img = img.convert("RGB")
-        img = img.resize(dimensions, Image.LANCZOS)
+        
+        # Uses ImageOps.fit to crop evenly and preserve aspect ratio
+        img = ImageOps.fit(img, dimensions, method=Image.LANCZOS)
+        
         return img
     except Exception as e:
         logger.error(f"Error grabbing image from {image_url}: {e}")
