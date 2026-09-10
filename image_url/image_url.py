@@ -1,26 +1,7 @@
 from plugins.base_plugin.base_plugin import BasePlugin
-from PIL import Image, ImageOps
-from io import BytesIO
-import requests
 import logging
 
 logger = logging.getLogger(__name__)
-
-def grab_image(image_url, dimensions, timeout_ms=40000):
-    """Grab an image from a URL and resize it to the specified dimensions."""
-    try:
-        response = requests.get(image_url, timeout=timeout_ms / 1000)
-        response.raise_for_status()
-        img = Image.open(BytesIO(response.content))
-        img = img.convert("RGB")
-        
-        # Uses ImageOps.fit to crop evenly and preserve aspect ratio
-        img = ImageOps.fit(img, dimensions, method=Image.LANCZOS)
-        
-        return img
-    except Exception as e:
-        logger.error(f"Error grabbing image from {image_url}: {e}")
-        return None
 
 class ImageURL(BasePlugin):
     def generate_image(self, settings, device_config):
@@ -45,7 +26,9 @@ class ImageURL(BasePlugin):
 
         logger.info(f"Grabbing image securely from: {url}")
 
-        image = grab_image(secure_url, dimensions, timeout_ms=40000)
+        # Use BasePlugin's built-in AdaptiveImageLoader instance to ensure 
+        # full gamma correction, display profiling, and strict Spectra 6 dithering are applied.
+        image = self.image_loader.from_url(secure_url, dimensions, timeout_ms=40000)
 
         if not image:
             raise RuntimeError("Failed to load image, please check logs.")
